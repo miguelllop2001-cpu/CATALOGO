@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LOPE — Catálogo mayoreo</title>
+<title>Catálogo mayoreo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -111,7 +111,7 @@
 </head>
 <body>
 <nav><div class="nav-in">
-  <div class="logo"><span class="mark">L<b>.</b></span> LOPE</div>
+  <div class="logo"></div>
   <div class="nav-actions" id="navActions"></div>
 </div></nav>
 
@@ -144,8 +144,7 @@
 </div></section>
 
 <footer><div class="wrap">
-  <div class="logo"><span class="mark">L<b>.</b></span> LOPE</div>
-  <div class="muted" style="margin-top:8px">Ferretería al por mayor · Cuba · WhatsApp: +1 786 537 4147</div>
+  <div class="muted">Ferretería al por mayor · Cuba · WhatsApp: +1 786 537 4147</div>
 </div></footer>
 
 <div class="float"><button class="btn btn-primary" onclick="abrirReserva()">🛒 Mi carrito ( <span id="floatN">0</span> )</button></div>
@@ -231,19 +230,19 @@ function render(){
     const f=p.fotos[0]; const cnt=p.fotos.length>1?`<span class="cnt">${p.fotos.length}</span>`:'';
     const ph=f?`<div class="ph">${cnt}<img src="${f}" loading="lazy" onclick='abrirVisor(${JSON.stringify(p.fotos)},0,${JSON.stringify(p.nombre)})'></div>`:`<div class="ph"><div class="none">L.</div></div>`;
     const disp=dispDe(p); const en=RESERVA[p.id]?RESERVA[p.id].cantidad:0;
-    const pend=pendDe(p.id, disp);
+    const pend=pendDe(p.id, disp); const total=Number(p.stock||disp);
     return `<div class="prod">${ph}<div class="pb">
       <div class="nm">${p.nombre}</div>
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
-      <div class="stk">Quedan ${disp} de ${Number(p.stock||disp)}${en?` · en tu reserva: ${en}`:''}</div>
+      <div class="stk" id="stk-${p.id}">Quedan ${disp} de ${total}${en?` · en tu reserva: ${en}`:''}</div>
       <div class="qwrap">
         <div class="qty">
-          <button type="button" onclick="setPend(${p.id}, ${pend-1})">−</button>
+          <button type="button" onclick="stepPend(${p.id},-1)">−</button>
           <input type="number" inputmode="numeric" id="pend-${p.id}" value="${pend}" onchange="setPend(${p.id}, this.value)">
-          <button type="button" onclick="setPend(${p.id}, ${pend+1})">+</button>
+          <button type="button" onclick="stepPend(${p.id},1)">+</button>
         </div>
       </div>
-      <button class="add ${en?'in':''}" onclick="agregar(${p.id})">${en?'✓ Actualizar reserva':'Agregar'}</button>
+      <button class="add ${en?'in':''}" id="add-${p.id}" onclick="agregar(${p.id})">${en?'✓ Actualizar reserva':'Agregar'}</button>
     </div></div>`;
   }).join('');
 }
@@ -258,6 +257,8 @@ function setPend(id, val){
   PEND[id]=c;
   const inp=document.getElementById('pend-'+id); if(inp) inp.value=c; // actualiza sin re-render (no pierde el foco)
 }
+// El + y el − leen el número ACTUAL y suman/restan desde ahí (uno por toque, sin trabarse).
+function stepPend(id, delta){ setPend(id, pendDe(id) + delta); }
 // Agregar: pone al carrito la cantidad elegida en el selector (la fija, no suma de a uno).
 function agregar(id){
   const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
@@ -267,7 +268,13 @@ function agregar(id){
   if(c>disp){ c=disp; alert('Solo quedan '+disp+' de "'+p.nombre+'".'); }
   RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c};
   PEND[id]=c;
-  actualizarContadores(); render();
+  actualizarContadores();
+  // Actualizar SOLO esta tarjeta (no recargamos la lista, así la pantalla NO se mueve).
+  const total=Number(p.stock||disp);
+  const stk=document.getElementById('stk-'+id); if(stk) stk.textContent=`Quedan ${disp} de ${total} · en tu reserva: ${c}`;
+  const inp=document.getElementById('pend-'+id); if(inp) inp.value=c;
+  const add=document.getElementById('add-'+id);
+  if(add){ add.classList.add('in'); add.textContent='✓ Agregado'; setTimeout(()=>{ const b=document.getElementById('add-'+id); if(b) b.textContent='✓ Actualizar reserva'; }, 900); }
 }
 // Fijar cantidad directamente desde el catálogo (permite escribir el número)
 function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+' de "'+p.nombre+'".'); c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
@@ -307,7 +314,7 @@ async function enviarReserva(){
     const {error}=await sb.from('reservas_mayoreo').insert({nombre:s.usuario, telefono:s.telefono, items, total, estado:'nueva'});
     if(error)throw error;
     const resumen=arr.map(x=>`• ${x.nombre} x${x.cantidad}`).join('%0A');
-    const wa=`Hola LOPE, reservé a nombre de ${encodeURIComponent(s.usuario)}:%0A${resumen}%0ATotal aprox: ${money(total)}`;
+    const wa=`Hola, reservé a nombre de ${encodeURIComponent(s.usuario)}:%0A${resumen}%0ATotal aprox: ${money(total)}`;
     document.getElementById('reservaItems').innerHTML=`<div class="ok-msg"><div class="big">✓ Reserva enviada</div><p class="muted">Gracias, ${s.usuario}. Te escribimos por WhatsApp con la hora para recoger y pagar.</p><a class="btn btn-primary" style="margin-top:14px" href="https://wa.me/${WHATSAPP}?text=${wa}" target="_blank">Avisar por WhatsApp</a></div>`;
     document.getElementById('reservaFoot').innerHTML='';
     RESERVA={}; pintarNav(); cargar();
