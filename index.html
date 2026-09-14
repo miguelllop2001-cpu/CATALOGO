@@ -75,9 +75,12 @@
   .fld label{ font-size:13px; color:var(--muted); display:block; margin-bottom:5px; }
   .fld input{ width:100%; padding:12px; border:1px solid var(--line); border-radius:11px; font-size:16px; font-family:inherit; }
   .ri{ display:flex; gap:10px; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); }
-  .qty{ display:flex; align-items:center; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .qty button{ width:32px; height:32px; border:none; background:#fff; font-size:17px; cursor:pointer; }
-  .qty input{ width:38px; border:none; text-align:center; font-size:15px; font-family:inherit; }
+  .qty{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .qty button{ width:38px; height:36px; border:none; background:#fff; font-size:19px; line-height:1; cursor:pointer; color:var(--ink); }
+  .qty button:active{ background:var(--panel); }
+  .qwrap{ display:flex; justify-content:center; margin:2px 0 1px; }
+  .prod .qty input{ width:50px; } .qty input{ width:50px; border:none; text-align:center; font-size:16px; font-weight:600; font-family:inherit; -moz-appearance:textfield; }
+  .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   .tot{ display:flex; justify-content:space-between; font-family:Archivo; font-weight:800; font-size:19px; margin-bottom:12px; }
   .empty-r{ text-align:center; color:var(--faint); padding:40px 16px; }
   .tabsw{ display:flex; gap:6px; margin-bottom:14px; }
@@ -179,7 +182,7 @@ const SUPABASE_URL="https://dkkrbiyidfgsxasdbxjt.supabase.co";
 const SUPABASE_KEY="sb_publishable_gVKtXTwNjGThLtVSMowK1Q_68AmhtgE";
 const WHATSAPP="17865374147";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-let PRODUCTOS=[],RESERVA={},MAY_ALM=null,visorFotos=[],visorIdx=0,visorNombre="";
+let PRODUCTOS=[],RESERVA={},PEND={},MAY_ALM=null,visorFotos=[],visorIdx=0,visorNombre="";
 
 function money(n){return '$'+(Number(n)||0).toLocaleString('es');}
 function sesion(){ try{ return JSON.parse(localStorage.getItem('sesion_lope')||'null'); }catch(_){ return null; } }
@@ -192,6 +195,7 @@ function pintarNav(){
     ? `<span class="user-chip">👤 ${s.usuario||''}</span><button class="btn btn-ghost btn-sm" onclick="abrirMisReservas()">Mis reservas <span class="badge-rojo" id="misN" style="display:none">0</span></button>`
     : `<button class="btn btn-ghost btn-sm" onclick="abrirCuenta()">Entrar</button>`)
     + `<button class="btn btn-primary btn-sm" onclick="abrirReserva()">🛒 Carrito ( <span id="navN">${totalItems()}</span> )</button>`;
+  const b=document.getElementById('floatN'); if(b)b.textContent=totalItems();
   try{ actualizarMisN(); }catch(_){}
 }
 
@@ -227,17 +231,47 @@ function render(){
     const f=p.fotos[0]; const cnt=p.fotos.length>1?`<span class="cnt">${p.fotos.length}</span>`:'';
     const ph=f?`<div class="ph">${cnt}<img src="${f}" loading="lazy" onclick='abrirVisor(${JSON.stringify(p.fotos)},0,${JSON.stringify(p.nombre)})'></div>`:`<div class="ph"><div class="none">L.</div></div>`;
     const disp=dispDe(p); const en=RESERVA[p.id]?RESERVA[p.id].cantidad:0;
+    const pend=pendDe(p.id, disp);
     return `<div class="prod">${ph}<div class="pb">
       <div class="nm">${p.nombre}</div>
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
-      <div class="stk">Quedan ${disp-en} de ${disp}</div>
-      <button class="add ${en?'in':''}" onclick="agregar(${p.id})">${en?('En reserva · '+en):'Agregar'}</button>
+      <div class="stk">Quedan ${disp} de ${Number(p.stock||disp)}${en?` · en tu reserva: ${en}`:''}</div>
+      <div class="qwrap">
+        <div class="qty">
+          <button type="button" onclick="setPend(${p.id}, ${pend-1})">−</button>
+          <input type="number" inputmode="numeric" id="pend-${p.id}" value="${pend}" onchange="setPend(${p.id}, this.value)">
+          <button type="button" onclick="setPend(${p.id}, ${pend+1})">+</button>
+        </div>
+      </div>
+      <button class="add ${en?'in':''}" onclick="agregar(${p.id})">${en?'✓ Actualizar reserva':'Agregar'}</button>
     </div></div>`;
   }).join('');
 }
 
-function agregar(id){ const p=PRODUCTOS.find(x=>x.id===id); if(!p) return; const disp=dispDe(p); const en=RESERVA[id]?RESERVA[id].cantidad:0; if(en+1>disp){ alert('Solo quedan '+(disp-en)+' de "'+p.nombre+'".'); return; } if(RESERVA[id])RESERVA[id].cantidad++; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:1}; pintarNav(); render(); }
-function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+'.'); c=disp; } if(c===0)delete RESERVA[id]; else RESERVA[id].cantidad=c; pintarNav(); render(); pintarReserva(); }
+function actualizarContadores(){ const n=totalItems(); const a=document.getElementById('navN'); if(a)a.textContent=n; const b=document.getElementById('floatN'); if(b)b.textContent=n; }
+// Cantidad "pendiente" del selector (lo que el cliente elige ANTES de tocar Agregar).
+function pendDe(id, disp){ let v=PEND[id]; if(v==null) v=(RESERVA[id]?RESERVA[id].cantidad:1)||1; if(disp!=null) v=Math.min(v, Math.max(1,disp)); return Math.max(1, v); }
+function setPend(id, val){
+  const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
+  const disp=dispDe(p);
+  let c=parseInt(val)||1; if(c<1)c=1; if(c>disp)c=disp>0?disp:1;
+  PEND[id]=c;
+  const inp=document.getElementById('pend-'+id); if(inp) inp.value=c; // actualiza sin re-render (no pierde el foco)
+}
+// Agregar: pone al carrito la cantidad elegida en el selector (la fija, no suma de a uno).
+function agregar(id){
+  const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
+  const disp=dispDe(p);
+  if(disp<=0){ alert('"'+p.nombre+'" se agotó.'); return; }
+  let c=pendDe(id, disp);
+  if(c>disp){ c=disp; alert('Solo quedan '+disp+' de "'+p.nombre+'".'); }
+  RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c};
+  PEND[id]=c;
+  actualizarContadores(); render();
+}
+// Fijar cantidad directamente desde el catálogo (permite escribir el número)
+function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+' de "'+p.nombre+'".'); c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
+function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+'.'); c=disp; } if(c===0)delete RESERVA[id]; else RESERVA[id].cantidad=c; actualizarContadores(); render(); pintarReserva(); }
 function totalItems(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad,0); }
 function totalDinero(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad*x.precio,0); }
 
