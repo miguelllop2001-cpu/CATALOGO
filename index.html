@@ -234,7 +234,7 @@ function render(){
     return `<div class="prod">${ph}<div class="pb">
       <div class="nm">${p.nombre}</div>
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
-      <div class="stk" id="stk-${p.id}">Quedan ${disp} de ${total}${en?` · en tu reserva: ${en}`:''}</div>
+      <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}</div>
       <div class="qwrap">
         <div class="qty">
           <button type="button" onclick="stepPend(${p.id},-1)">−</button>
@@ -265,20 +265,20 @@ function agregar(id){
   const disp=dispDe(p);
   if(disp<=0){ alert('"'+p.nombre+'" se agotó.'); return; }
   let c=pendDe(id, disp);
-  if(c>disp){ c=disp; alert('Solo quedan '+disp+' de "'+p.nombre+'".'); }
+  if(c>disp){ c=disp; alert('Ya no hay más disponible de "'+p.nombre+'".'); }
   RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c};
   PEND[id]=c;
   actualizarContadores();
   // Actualizar SOLO esta tarjeta (no recargamos la lista, así la pantalla NO se mueve).
   const total=Number(p.stock||disp);
-  const stk=document.getElementById('stk-'+id); if(stk) stk.textContent=`Quedan ${disp} de ${total} · en tu reserva: ${c}`;
+  const stk=document.getElementById('stk-'+id); if(stk) stk.textContent=`Disponible · en tu reserva: ${c}`;
   const inp=document.getElementById('pend-'+id); if(inp) inp.value=c;
   const add=document.getElementById('add-'+id);
   if(add){ add.classList.add('in'); }
 }
 // Fijar cantidad directamente desde el catálogo (permite escribir el número)
-function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+' de "'+p.nombre+'".'); c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
-function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+'.'); c=disp; } if(c===0)delete RESERVA[id]; else RESERVA[id].cantidad=c; actualizarContadores(); render(); pintarReserva(); }
+function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(c>disp){ alert('Ya no hay más disponible de "'+p.nombre+'".'); c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
+function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); if(c>disp){ alert('Ya no hay más disponible.'); c=disp; } if(c===0)delete RESERVA[id]; else RESERVA[id].cantidad=c; actualizarContadores(); render(); pintarReserva(); }
 function totalItems(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad,0); }
 function totalDinero(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad*x.precio,0); }
 
@@ -304,7 +304,7 @@ async function enviarReserva(){
   const btn=document.querySelector('#reservaFoot .btn'); btn.textContent='Revisando…'; btn.disabled=true;
   try{
     const resv=await reservadoPend(); let prob=null;
-    for(const x of arr){ const p=PRODUCTOS.find(y=>y.id===x.id); const disp=Math.max(0,Number(p.stock||0)-Number(resv[x.id]||0)); if(x.cantidad>disp){ p.reservado=Number(resv[x.id]||0); prob=(disp<=0)?('"'+p.nombre+'" se agotó'):('De "'+p.nombre+'" quedan '+disp); if(disp<=0)delete RESERVA[x.id]; else RESERVA[x.id].cantidad=disp; } }
+    for(const x of arr){ const p=PRODUCTOS.find(y=>y.id===x.id); const disp=Math.max(0,Number(p.stock||0)-Number(resv[x.id]||0)); if(x.cantidad>disp){ p.reservado=Number(resv[x.id]||0); prob=(disp<=0)?('"'+p.nombre+'" se agotó'):('ajusté "'+p.nombre+'" a lo que hay disponible'); if(disp<=0)delete RESERVA[x.id]; else RESERVA[x.id].cantidad=disp; } }
     if(prob){ btn.textContent='Enviar reserva'; btn.disabled=false; alert('Ajusté tu reserva: '+prob); pintarNav(); render(); pintarReserva(); return; }
   }catch(e){}
   btn.textContent='Enviando…';
