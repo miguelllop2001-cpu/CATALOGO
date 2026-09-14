@@ -11,7 +11,7 @@
 <style>
   :root{ --paper:#fff; --panel:#f5f6f8; --line:#e4e6ea; --ink:#16191f; --muted:#6b7280; --faint:#9aa1ad; --signal:#e8590c; --signal-d:#c74a06; --price:#0a8f57; --radius:14px; }
   *{box-sizing:border-box; max-width:100%}
-  html,body{margin:0; overflow-x:hidden}
+  html,body{margin:0; overflow-x:clip}
   body{ font-family:Inter,system-ui,sans-serif; background:var(--paper); color:var(--ink); line-height:1.5; }
   h1,h2,h3{ font-family:Archivo,system-ui,sans-serif; letter-spacing:-.02em; margin:0; }
   .wrap{ max-width:1080px; margin:0 auto; padding:0 14px; }
@@ -242,7 +242,7 @@ function render(){
           <button type="button" onclick="stepPend(${p.id},1)">+</button>
         </div>
       </div>
-      <button class="add ${en?'in':''}" id="add-${p.id}" onclick="agregar(${p.id})">${en?'✓ Actualizar reserva':'Agregar'}</button>
+      <button class="add ${en?'in':''}" id="add-${p.id}" onclick="agregar(${p.id})">Agregar</button>
     </div></div>`;
   }).join('');
 }
@@ -274,7 +274,7 @@ function agregar(id){
   const stk=document.getElementById('stk-'+id); if(stk) stk.textContent=`Quedan ${disp} de ${total} · en tu reserva: ${c}`;
   const inp=document.getElementById('pend-'+id); if(inp) inp.value=c;
   const add=document.getElementById('add-'+id);
-  if(add){ add.classList.add('in'); add.textContent='✓ Agregado'; setTimeout(()=>{ const b=document.getElementById('add-'+id); if(b) b.textContent='✓ Actualizar reserva'; }, 900); }
+  if(add){ add.classList.add('in'); }
 }
 // Fijar cantidad directamente desde el catálogo (permite escribir el número)
 function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(c>disp){ alert('Solo quedan '+disp+' de "'+p.nombre+'".'); c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
